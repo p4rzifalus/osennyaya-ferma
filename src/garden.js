@@ -10,9 +10,6 @@ export const RIPE = 3;
 export class Garden {
   constructor(scene) {
     this.cells = [];
-    const markerGeo = new THREE.ConeGeometry(0.17, 0.32, 4);
-    markerGeo.rotateX(Math.PI); // остриём вниз
-    const markerMat = new THREE.MeshBasicMaterial({ color: COLORS.ripeMarker }); // не зависит от света
     for (let x = 0; x < GARDEN_SIZE; x++) {
       for (let z = 0; z < GARDEN_SIZE; z++) {
         const p = cellToWorld(x, z);
@@ -28,13 +25,7 @@ export class Garden {
         anchor.position.set(p.x, 0.04, p.z);
         scene.add(anchor);
 
-        // Стрелка над спелым урожаем — видно, что пора собирать
-        const marker = new THREE.Mesh(markerGeo, markerMat);
-        marker.position.set(p.x, 1, p.z);
-        marker.visible = false;
-        scene.add(marker);
-
-        this.cells.push({ x, z, plant: null, wateredAt: null, tile, anchor, marker, markerY: 1, shownStage: null, soilColor: null });
+        this.cells.push({ x, z, plant: null, wateredAt: null, tile, anchor, shownStage: null, soilColor: null });
       }
     }
   }
@@ -93,17 +84,8 @@ export class Garden {
       const stage = this.stage(cell, now);
       if (stage !== cell.shownStage) {
         cell.anchor.clear();
-        if (stage !== EMPTY) {
-          const plant = buildPlant(cell.plant, stage);
-          cell.anchor.add(plant);
-          // стрелка висит над верхушкой растения
-          cell.markerY = new THREE.Box3().setFromObject(plant).max.y + 0.35;
-        }
-        cell.marker.visible = stage === RIPE;
+        if (stage !== EMPTY) cell.anchor.add(buildPlant(cell.plant, stage));
         cell.shownStage = stage;
-      }
-      if (stage === RIPE) {
-        cell.marker.position.y = cell.markerY + Math.sin(now / 350 + cell.x) * 0.06;
       }
 
       // Земля: тёмная, пока растёт после полива; светлая, когда урожай готов

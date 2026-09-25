@@ -10,7 +10,6 @@ export const COLORS = {
   soil: PALETTE[1],        // клетки огорода
   soilWet: PALETTE[0],     // политая земля
   soilRipe: PALETTE[2],    // клетка со спелым урожаем
-  ripeMarker: PALETTE[5],  // стрелка над спелым урожаем
   mound: PALETTE[2],       // бугорок над семечком
   seed: PALETTE[4],
   leaves: PALETTE[3],
