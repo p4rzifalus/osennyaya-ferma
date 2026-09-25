@@ -1,15 +1,18 @@
 // Настройка стиля: панель ползунков (G), переключение режима (P), кнопки для телефона.
 // Временная штука — в финале уберём.
 import GUI from 'lil-gui';
-import { STYLE } from './config.js';
+import { STYLE, STYLE_PHONE } from './config.js';
 import { MODES } from './postfx.js';
 
-const STORAGE_KEY = 'ogorod-style';
+// Телефон — сенсорный экран. У него свои стартовые значения и своё сохранение.
+const IS_PHONE = window.matchMedia('(pointer: coarse)').matches;
+const DEFAULTS = IS_PHONE ? { ...STYLE, ...STYLE_PHONE } : STYLE;
+const STORAGE_KEY = IS_PHONE ? 'ogorod-style-phone' : 'ogorod-style';
 const MODE_NAMES = { off: 'выкл', pixels: 'пиксели', ascii: 'ASCII' };
 
 // Стартовые значения из config.js, поверх — то, что ты накрутил в прошлый раз
 function loadSettings() {
-  const settings = { ...STYLE };
+  const settings = { ...DEFAULTS };
   try {
     Object.assign(settings, JSON.parse(localStorage.getItem(STORAGE_KEY)) || {});
   } catch { /* нет сохранённого — берём из config.js */ }
@@ -22,7 +25,8 @@ function saveSettings(settings) {
   } catch { /* браузер не даёт сохранять — не страшно */ }
 }
 
-export function createStyleControls() {
+// onRestart — стереть прогресс и начать игру заново
+export function createStyleControls({ onRestart } = {}) {
   const settings = loadSettings();
   const save = () => saveSettings(settings);
 
@@ -43,11 +47,18 @@ export function createStyleControls() {
   }, 'copy').name('скопировать значения');
   gui.add({
     reset() {
-      Object.assign(settings, STYLE);
+      Object.assign(settings, DEFAULTS);
       gui.controllersRecursive().forEach((c) => c.updateDisplay());
       save();
     },
   }, 'reset').name('сбросить к config.js');
+  if (onRestart) {
+    gui.add({
+      restart() {
+        if (confirm('Стереть огород и начать заново?')) onRestart();
+      },
+    }, 'restart').name('начать игру заново');
+  }
   gui.onChange(save);
   gui.hide();
 

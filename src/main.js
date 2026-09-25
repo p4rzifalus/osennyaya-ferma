@@ -8,10 +8,11 @@ import { createInput } from './input.js';
 import { createUI, TOOLS } from './ui.js';
 import { createPostFX } from './postfx.js';
 import { createStyleControls } from './gui.js';
+import { loadGame, saveGame, clearSave } from './save.js';
 
-const { renderer, scene, camera, world, basket } = createScene(document.body);
+const { renderer, scene, camera, cameraControl, world, basket } = createScene(document.body);
 
-const postfx = createPostFX(renderer, createStyleControls());
+const postfx = createPostFX(renderer, createStyleControls({ onRestart: restart }));
 const garden = new Garden(scene);
 
 const mole = new Mole();
@@ -26,20 +27,68 @@ scene.add(hoverFrame, frontMarker);
 // Состояние игры
 let tool = 'seeds';
 let basketCount = 0;
+let restarting = false; // во время «начать заново» не сохраняем
 
 const ui = createUI({ onSelectTool: selectTool });
+
+// Загрузка сохранения. Растения «досчитываются» сами: стадия считается от момента полива.
+const saved = loadGame();
+if (saved) {
+  garden.load(saved.cells || []);
+  basketCount = saved.basketCount || 0;
+  if (TOOLS.some((t) => t.id === saved.tool)) tool = saved.tool;
+  if (saved.held) mole.setHeld(saved.held);
+  if (saved.mole) {
+    mole.position.set(saved.mole.x, 0, saved.mole.z);
+    mole.heading = mole.targetHeading = saved.mole.heading;
+    mole.collide(world); // на случай, если огород поменялся
+  }
+}
+cameraControl.centerOn(mole.position); // на телефоне сцена ближе — начинаем с крота
 ui.setBasket(basketCount);
+basket.userData.fill.visible = basketCount > 0;
 selectTool(tool);
 
 function selectTool(id) {
   tool = id;
   ui.setTool(id);
+  save();
 }
+
+// Сохранение
+function save() {
+  if (restarting) return;
+  saveGame({
+    cells: garden.toSave(),
+    basketCount,
+    held: mole.held,
+    tool,
+    mole: { x: mole.position.x, z: mole.position.z, heading: mole.heading },
+  });
+}
+
+function restart() {
+  restarting = true;
+  clearSave();
+  location.reload();
+}
+
+// При закрытии/сворачивании вкладки и раз в 5 секунд — на всякий случай
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) save();
+});
+window.addEventListener('pagehide', save);
+setInterval(save, 5000);
 
 const isBasket = (c) => c.x === BASKET_CELL.x && c.z === BASKET_CELL.z;
 
 // Выбранный инструмент срабатывает на клетке (или на корзинке)
 function useTool(c) {
+  applyTool(c);
+  save();
+}
+
+function applyTool(c) {
   if (isBasket(c)) return putInBasket();
   if (!isInGarden(c)) return;
   const stage = garden.stage(c);
@@ -85,6 +134,9 @@ const input = createInput(renderer.domElement, camera, {
   onAction() {
     const c = frontCell();
     if (c) useTool(c);
+  },
+  onPan(dx, dy) {
+    cameraControl.panBy(dx, dy);
   },
   onTool(n) {
     if (TOOLS[n - 1]) selectTool(TOOLS[n - 1].id);

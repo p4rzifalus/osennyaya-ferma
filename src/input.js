@@ -66,11 +66,45 @@ export function createInput(canvas, camera, handlers = {}, pickables = []) {
     },
   };
 
-  canvas.addEventListener('pointermove', (e) => { input.hoverCell = cellAt(e); });
-  canvas.addEventListener('pointerleave', () => { input.hoverCell = null; });
-  canvas.addEventListener('click', (e) => {
+  // Нажал и повёл — двигаем сцену. Нажал и отпустил на месте — это клик/тап по клетке.
+  const DRAG_THRESHOLD = 8; // на сколько точек сдвинуть палец, чтобы это считалось драгом
+  let press = null;
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (press) return; // второй палец не трогаем
+    press = { id: e.pointerId, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY, dragging: false };
+    canvas.setPointerCapture(e.pointerId);
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (press && e.pointerId === press.id) {
+      if (!press.dragging && Math.hypot(e.clientX - press.startX, e.clientY - press.startY) > DRAG_THRESHOLD) {
+        press.dragging = true;
+      }
+      if (press.dragging) {
+        handlers.onPan?.(e.clientX - press.lastX, e.clientY - press.lastY);
+        press.lastX = e.clientX;
+        press.lastY = e.clientY;
+        input.hoverCell = null;
+        return;
+      }
+    }
+    input.hoverCell = cellAt(e);
+  });
+
+  canvas.addEventListener('pointerup', (e) => {
+    if (!press || e.pointerId !== press.id) return;
+    const wasDrag = press.dragging;
+    press = null;
+    if (wasDrag) return;
     const cell = cellAt(e);
+    input.hoverCell = cell;
     if (cell) handlers.onCellClick?.(cell);
+  });
+
+  canvas.addEventListener('pointercancel', () => { press = null; });
+  canvas.addEventListener('pointerleave', (e) => {
+    if (e.pointerType === 'mouse' && !press) input.hoverCell = null;
   });
 
   return input;

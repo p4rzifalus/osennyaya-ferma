@@ -1,6 +1,6 @@
 // Сцена: камера, свет, земля, огород, домик, корзинка, подсветки клеток.
 import * as THREE from 'three';
-import { COLORS, GARDEN_SIZE, CELL_SIZE, BASKET_CELL } from './config.js';
+import { COLORS, GARDEN_SIZE, CELL_SIZE, BASKET_CELL, MIN_CELL_PX } from './config.js';
 import { cellToWorld } from './grid.js';
 
 const TOOLBAR_SPACE = 110; // сколько точек снизу занимает панель инструментов
@@ -61,39 +61,76 @@ export function createScene(container) {
     obstacles: [{ x: basketPos.x, z: basketPos.z, r: 0.45 }],
   };
 
-  // Камера подстраивается, чтобы вся сцена помещалась в окно
+  // Камера: вся сцена целиком, если помещается. На узком экране — ближе
+  // (клетка не меньше пальца), и тогда сцену можно двигать драгом.
   const sceneBox = new THREE.Box3(
     new THREE.Vector3(-half - 0.3, -0.4, islandMinZ),
     new THREE.Vector3(half + 0.3, 3, half + 0.3),
   );
-  function resize() {
+  camera.updateMatrixWorld();
+  // Границы сцены в координатах экрана камеры (камера не вращается, считаем один раз)
+  const sceneRect = new THREE.Box3();
+  for (const x of [sceneBox.min.x, sceneBox.max.x])
+    for (const y of [sceneBox.min.y, sceneBox.max.y])
+      for (const z of [sceneBox.min.z, sceneBox.max.z])
+        sceneRect.expandByPoint(new THREE.Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse));
+  sceneRect.expandByScalar(0.4); // поля
+  const CELL_WIDTH_IN_VIEW = CELL_SIZE * Math.SQRT2; // ширина ромбика клетки
+
+  const view = { scale: 1, center: sceneRect.getCenter(new THREE.Vector3()) }; // scale — точек экрана на единицу сцены
+
+  // Держим видимую область в пределах сцены
+  function clampCenter() {
+    const halfW = window.innerWidth / 2 / view.scale;
+    const halfH = freeHeight() / 2 / view.scale;
+    const clampAxis = (value, min, max, half) => (max - min <= half * 2 ? (min + max) / 2 : Math.min(max - half, Math.max(min + half, value)));
+    view.center.x = clampAxis(view.center.x, sceneRect.min.x, sceneRect.max.x, halfW);
+    view.center.y = clampAxis(view.center.y, sceneRect.min.y, sceneRect.max.y, halfH);
+  }
+
+  // Высота экрана над панелью инструментов
+  const freeHeight = () => Math.max(window.innerHeight - TOOLBAR_SPACE, window.innerHeight * 0.5);
+
+  function applyView() {
+    clampCenter();
     const w = window.innerWidth;
     const h = window.innerHeight;
-    renderer.setSize(w, h);
-    camera.updateMatrixWorld();
-    const view = new THREE.Box3();
-    for (const x of [sceneBox.min.x, sceneBox.max.x])
-      for (const y of [sceneBox.min.y, sceneBox.max.y])
-        for (const z of [sceneBox.min.z, sceneBox.max.z])
-          view.expandByPoint(new THREE.Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse));
-    const center = view.getCenter(new THREE.Vector3());
-    const size = view.getSize(new THREE.Vector3()).multiplyScalar(0.5 * 1.08); // + поля
-    // Сцена вписывается в часть экрана над панелью инструментов
-    const freeH = Math.max(h - TOOLBAR_SPACE, h * 0.5);
-    const aspect = w / freeH;
-    if (size.x / size.y > aspect) size.y = size.x / aspect;
-    else size.x = size.y * aspect;
-    const top = center.y + size.y;
+    const halfW = w / 2 / view.scale;
+    const top = view.center.y + freeHeight() / 2 / view.scale;
     Object.assign(camera, {
-      left: center.x - size.x, right: center.x + size.x,
-      top, bottom: top - size.y * 2 * (h / freeH),
+      left: view.center.x - halfW, right: view.center.x + halfW,
+      top, bottom: top - h / view.scale,
     });
     camera.updateProjectionMatrix();
+  }
+
+  function resize() {
+    const w = window.innerWidth;
+    renderer.setSize(w, window.innerHeight);
+    const size = sceneRect.getSize(new THREE.Vector3());
+    const fitScale = Math.min(w / size.x, freeHeight() / size.y);
+    view.scale = Math.max(fitScale, MIN_CELL_PX / CELL_WIDTH_IN_VIEW);
+    applyView();
   }
   resize();
   window.addEventListener('resize', resize);
 
-  return { renderer, scene, camera, world, basket };
+  const cameraControl = {
+    // Сдвинуть сцену вслед за пальцем (в точках экрана)
+    panBy(dxPx, dyPx) {
+      view.center.x -= dxPx / view.scale;
+      view.center.y += dyPx / view.scale;
+      applyView();
+    },
+    // Поставить точку сцены в центр экрана
+    centerOn(worldPos) {
+      const p = worldPos.clone().applyMatrix4(camera.matrixWorldInverse);
+      view.center.set(p.x, p.y, 0);
+      applyView();
+    },
+  };
+
+  return { renderer, scene, camera, cameraControl, world, basket };
 }
 
 function createHouse(x, z) {

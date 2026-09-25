@@ -63,6 +63,21 @@ export class Garden {
     return type;
   }
 
+  // Для сохранения: только клетки, где что-то есть
+  toSave() {
+    return this.cells
+      .filter((cell) => cell.plant)
+      .map(({ x, z, plant, wateredAt }) => ({ x, z, plant, wateredAt }));
+  }
+
+  load(saved) {
+    for (const { x, z, plant, wateredAt } of saved) {
+      if (x >= 0 && x < GARDEN_SIZE && z >= 0 && z < GARDEN_SIZE && PLANTS[plant]) {
+        Object.assign(this.cell({ x, z }), { plant, wateredAt });
+      }
+    }
+  }
+
   // Каждый кадр: обновить вид клеток, у которых сменилась стадия
   update(now = Date.now()) {
     for (const cell of this.cells) {
