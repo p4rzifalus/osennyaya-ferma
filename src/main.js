@@ -10,7 +10,7 @@ import { createPostFX } from './postfx.js';
 import { createDecor } from './decor.js';
 import { loadGame, saveGame, clearSave } from './save.js';
 
-const { renderer, scene, camera, cameraControl, world, basket, landmarks } = createScene(document.body);
+const { renderer, scene, camera, cameraControl, world, basket, landmarks, island } = createScene(document.body);
 
 // Стиль картинки: на телефоне (сенсорный экран) — свои значения поверх общих
 const isPhone = window.matchMedia('(pointer: coarse)').matches;
@@ -264,6 +264,7 @@ renderer.setAnimationLoop((now) => {
   mole.update(dt, input.getMoveDir(), world);
   garden.update();
   decor.update(dt, now / 1000);
+  island.update(now / 1000);
 
   placeOn(hoverFrame, input.hoverCell);
   placeOn(frontMarker, frontCell());

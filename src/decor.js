@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { COLORS, GARDEN_SIZE, BASKET_CELL, DECOR } from './config.js';
 import { cellToWorld } from './grid.js';
+import { FEATURES } from './island.js';
 
 const lambert = (color) => new THREE.MeshLambertMaterial({ color });
 
@@ -33,7 +34,9 @@ export function createDecor(scene, landmarks) {
   for (let i = 0; i < 16; i++) {
     const p = new THREE.Vector3(between(island.minX + 0.3, island.maxX - 0.3), 0, between(island.minZ + 0.3, house.maxZ - 0.6));
     const insideHouse = p.x > house.minX && p.x < house.maxX && p.z > house.minZ && p.z < house.maxZ;
-    if (!insideHouse) spots.push(p);
+    const nearTree = Math.hypot(p.x - FEATURES.tree.x, p.z - FEATURES.tree.z) < 1.2;
+    const nearBoulder = FEATURES.boulders.some((b) => Math.hypot(p.x - b.x, p.z - b.z) < b.r + 0.4);
+    if (!insideHouse && !nearTree && !nearBoulder) spots.push(p);
   }
   function takeSpot() {
     if (!spots.length) return cellToWorld(-1, between(-1, GARDEN_SIZE)); // мест не хватило — на дорожку
@@ -125,6 +128,85 @@ export function createDecor(scene, landmarks) {
     scene.add(m);
   }
 
+  // Булыжники
+  for (const b of FEATURES.boulders) {
+    const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(b.r, 0), lambert(COLORS.boulder));
+    boulder.position.set(b.x, b.r * 0.45, b.z);
+    boulder.scale.set(1, 0.75, 0.9);
+    boulder.rotation.set(rand(), rand() * 3, rand() * 0.4);
+    boulder.castShadow = true;
+    boulder.receiveShadow = true;
+    scene.add(boulder);
+  }
+
+  // Высокая трава — пятнами, тоже качается на ветру
+  for (const patch of FEATURES.tallGrass) {
+    const count = 5 + Math.floor(rand() * 4);
+    for (let i = 0; i < count; i++) {
+      const blade = new THREE.Group();
+      const h = between(0.4, 0.75);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.05, h, 4), lambert(rand() < 0.3 ? COLORS.leavesA : COLORS.tallGrass));
+      cone.position.y = h / 2;
+      cone.castShadow = true;
+      blade.add(cone);
+      blade.position.set(patch.x + between(-0.35, 0.35), 0, patch.z + between(-0.35, 0.35));
+      blade.rotation.y = rand() * 3;
+      swaying.push({ object: blade, phase: rand() * 6, amount: 0.3 });
+      scene.add(blade);
+    }
+  }
+
+  // Дерево с осенней листвой и качелями на ветке
+  const tree = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 2.3, 8), lambert(COLORS.treeTrunk));
+  trunk.position.y = 1.15;
+  tree.add(trunk);
+  const branchDir = new THREE.Vector3(-1, 0, 1).normalize(); // ветка тянется влево по экрану — качели видно сбоку
+  const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 1.2, 6), lambert(COLORS.treeTrunk));
+  branch.position.set(branchDir.x * 0.6, 1.85, branchDir.z * 0.6);
+  branch.rotation.set(Math.PI / 2 - 0.12, 0, 0);
+  branch.rotation.order = 'YXZ';
+  branch.rotation.y = -Math.PI / 4;
+  tree.add(branch);
+  for (const [cx, cy, cz, r, color] of [
+    [0, 2.7, 0, 0.95, COLORS.leavesA], [-0.6, 2.4, -0.4, 0.75, COLORS.leavesB], [0.5, 2.35, -0.5, 0.7, COLORS.leavesB],
+    [-0.3, 3.2, -0.2, 0.7, COLORS.leavesA], [0.35, 2.9, 0.35, 0.6, COLORS.leavesB], [-0.55, 2.8, 0.45, 0.55, COLORS.leavesA],
+  ]) {
+    const clump = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), new THREE.MeshLambertMaterial({ color, flatShading: true }));
+    clump.position.set(cx, cy, cz);
+    tree.add(clump);
+  }
+  tree.traverse((m) => { m.castShadow = true; });
+  tree.position.set(FEATURES.tree.x, 0, FEATURES.tree.z);
+  scene.add(tree);
+
+  // Качели: висят на ветке и раскачиваются поперёк неё
+  const swingPivot = new THREE.Group();
+  swingPivot.position.set(branchDir.x * 0.85, 1.85, branchDir.z * 0.85);
+  swingPivot.rotation.y = (-3 * Math.PI) / 4; // своя ось x — вдоль ветки
+  const swing = new THREE.Group();
+  for (const side of [-1, 1]) {
+    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.35, 4), lambert(COLORS.rope));
+    rope.position.set(side * 0.24, -0.68, 0);
+    swing.add(rope);
+  }
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.06, 0.24), lambert(COLORS.swingSeat));
+  seat.position.y = -1.37;
+  swing.add(seat);
+  swing.traverse((m) => { m.castShadow = true; });
+  swingPivot.add(swing);
+  tree.add(swingPivot);
+
+  // Листья падают с кроны, кружатся и появляются снова
+  const leafGeo = new THREE.PlaneGeometry(0.13, 0.09);
+  const leafMat = new THREE.MeshBasicMaterial({ color: COLORS.leavesA, side: THREE.DoubleSide });
+  const leaves = [];
+  for (let i = 0; i < DECOR.fallingLeaves; i++) {
+    const leaf = new THREE.Mesh(leafGeo, leafMat);
+    leaves.push({ mesh: leaf, age: rand(), phase: rand() * 6, offset: new THREE.Vector3(between(-0.9, 0.9), 0, between(-0.9, 0.9)) });
+    scene.add(leaf);
+  }
+
   // Брызги при поливе
   const dropGeo = new THREE.BoxGeometry(0.08, 0.12, 0.08);
   const dropMat = new THREE.MeshBasicMaterial({ color: COLORS.water });
@@ -176,6 +258,20 @@ export function createDecor(scene, landmarks) {
         if (p.x < island.minX) p.x = island.maxX;
         if (p.z > island.maxZ) p.z = island.minZ;
         if (p.z < island.minZ) p.z = island.maxZ;
+      }
+
+      // Качели: мягко качаются, сильнее при ветре
+      swing.rotation.x = Math.sin(time * 1.6) * (0.12 + windStrength * 0.15);
+
+      for (const l of leaves) {
+        l.age = (l.age + dt / 6) % 1; // лист падает 6 секунд
+        const fall = l.age;
+        l.mesh.position.set(
+          FEATURES.tree.x + l.offset.x + wind.x * windStrength * fall * 1.5 + Math.sin(time * 2 + l.phase) * 0.15,
+          2.4 - fall * 2.4,
+          FEATURES.tree.z + l.offset.z + wind.z * windStrength * fall * 1.5,
+        );
+        l.mesh.rotation.set(time * 2 + l.phase, time * 1.3 + l.phase, 0);
       }
 
       for (let i = drops.length - 1; i >= 0; i--) {

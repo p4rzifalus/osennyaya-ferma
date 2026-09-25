@@ -25,6 +25,21 @@ export const COLORS = {
   houseRoof: PALETTE[1],
   houseDoor: PALETTE[0],
   houseWindow: PALETTE[5],
+  houseTrim: PALETTE[1],     // брёвна, рамы, наличники
+  houseShutters: PALETTE[2],
+  houseStep: PALETTE[2],
+  houseAccent: PALETTE[4],   // дверная ручка
+  lamp: PALETTE[5],          // фонарик и круглое окошко — светятся
+  barrel: PALETTE[2],
+  logs: PALETTE[3],
+  cliff: PALETTE[2],         // бока острова
+  treeTrunk: PALETTE[1],
+  leavesA: PALETTE[4],       // осенняя листва
+  leavesB: PALETTE[3],
+  rope: PALETTE[4],
+  swingSeat: PALETTE[2],
+  boulder: PALETTE[3],
+  tallGrass: PALETTE[3],
   basket: PALETTE[4],
   basketInside: PALETTE[1],
   basketFill: PALETTE[4],
@@ -82,12 +97,13 @@ export const DECOR = {
   grassTufts: 18,
   flowers: 5,
   fluffs: 10,   // пушинки в воздухе
+  fallingLeaves: 6, // листья, падающие с дерева
   wind: 0.8,    // сила ветра: 0 — штиль, 1 — ветрено
   smokePuffs: 4,       // сколько клубов дыма одновременно
   smokeOpacity: 0.45,  // плотность дыма: 0 — невидимый, 1 — сплошной
 };
 
-// Камера: минимальная ширина ромбика клетки на экране, в точках (высота — примерно 0,6 от неё). Если огород целиком
+// Камера (только сенсорные экраны): минимальная ширина ромбика клетки, в точках (высота — примерно 0,6 от неё). Если огород целиком
 // в экран не помещается (телефон), камера приближается и сцену можно двигать пальцем.
 export const MIN_CELL_PX = 72;
 

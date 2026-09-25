@@ -2,7 +2,9 @@
 import * as THREE from 'three';
 import { COLORS, GARDEN_SIZE, CELL_SIZE, BASKET_CELL, MIN_CELL_PX } from './config.js';
 import { cellToWorld } from './grid.js';
+import { createIsland } from './island.js';
 
+const isTouch = window.matchMedia('(pointer: coarse)').matches;
 const TOOLBAR_SPACE = 160; // сколько точек снизу занимают панель инструментов и ряд семян
 
 const mat = (color) => new THREE.MeshLambertMaterial({ color });
@@ -44,11 +46,10 @@ export function createScene(container) {
   const half = (GARDEN_SIZE / 2 + 1) * CELL_SIZE;   // край дорожки
   const houseZ = -half - 1.5 * CELL_SIZE;            // домик за дорожкой
 
-  // Островок земли
+  // Остров: ровная середина под огородом, дорожкой и домиком, вокруг — неровные края
   const islandMinZ = houseZ - 1.5 * CELL_SIZE;
-  const island = box(half * 2 + 0.6, 0.4, half + 0.3 - islandMinZ, COLORS.ground, 0, -0.4, (half + 0.3 + islandMinZ) / 2);
-  island.castShadow = false;
-  scene.add(island);
+  const core = { minX: -half - 0.3, maxX: half + 0.3, minZ: islandMinZ, maxZ: half + 0.3 };
+  const island = createIsland(scene, core);
 
   const houseX = 0.5;
   scene.add(createHouse(houseX, houseZ));
@@ -65,8 +66,8 @@ export function createScene(container) {
   // Камера: вся сцена целиком, если помещается. На узком экране — ближе
   // (клетка не меньше пальца), и тогда сцену можно двигать драгом.
   const sceneBox = new THREE.Box3(
-    new THREE.Vector3(-half - 0.3, -0.4, islandMinZ),
-    new THREE.Vector3(half + 0.3, 3, half + 0.3),
+    new THREE.Vector3(core.minX - 1, -0.6, core.minZ - 1),
+    new THREE.Vector3(core.maxX + 1, 3.3, core.maxZ + 1),
   );
   camera.updateMatrixWorld();
   // Границы сцены в координатах экрана камеры (камера не вращается, считаем один раз)
@@ -110,7 +111,8 @@ export function createScene(container) {
     renderer.setSize(w, window.innerHeight);
     const size = sceneRect.getSize(new THREE.Vector3());
     const fitScale = Math.min(w / size.x, freeHeight() / size.y);
-    view.scale = Math.max(fitScale, MIN_CELL_PX / CELL_WIDTH_IN_VIEW);
+    // Приближаем только на сенсорных экранах: мышью и в мелкую клетку попасть легко
+    view.scale = isTouch ? Math.max(fitScale, MIN_CELL_PX / CELL_WIDTH_IN_VIEW) : fitScale;
     applyView();
   }
   resize();
@@ -135,11 +137,11 @@ export function createScene(container) {
   const landmarks = {
     chimneyTop: new THREE.Vector3(houseX + 0.8, 2.55, houseZ - 0.3),
     roofPeak: new THREE.Vector3(houseX, 2.6, houseZ + 1.0),
-    island: { minX: -half - 0.3, maxX: half + 0.3, minZ: islandMinZ, maxZ: half + 0.3 },
-    house: { minX: houseX - 1.8, maxX: houseX + 1.8, minZ: houseZ - 1.3, maxZ: houseZ + 1.4 },
+    island: core,
+    house: { minX: houseX - 1.8, maxX: houseX + 2.4, minZ: houseZ - 1.3, maxZ: houseZ + 1.4 },
   };
 
-  return { renderer, scene, camera, cameraControl, world, basket, landmarks };
+  return { renderer, scene, camera, cameraControl, world, basket, landmarks, island };
 }
 
 function createHouse(x, z) {
@@ -159,9 +161,88 @@ function createHouse(x, z) {
   roof.castShadow = true;
   house.add(roof);
 
-  house.add(box(0.6, 0.95, 0.06, COLORS.houseDoor, -0.5, 0, d / 2));          // дверь
-  house.add(box(0.5, 0.45, 0.06, COLORS.houseWindow, 0.7, 0.55, d / 2));      // окно
-  house.add(box(0.3, 0.7, 0.3, COLORS.houseRoof, 0.8, h + 0.35, -0.3));        // труба
+  const front = d / 2;
+
+  // Брёвна-стойки по углам и балка под крышей
+  for (const [cx, cz] of [[-w / 2, front], [w / 2, front], [w / 2, -front], [-w / 2, -front]]) {
+    house.add(box(0.12, h, 0.12, COLORS.houseTrim, cx, 0, cz));
+  }
+  house.add(box(w + 0.1, 0.1, 0.1, COLORS.houseTrim, 0, h - 0.1, front + 0.02));
+  house.add(box(0.1, 0.1, d + 0.1, COLORS.houseTrim, w / 2 + 0.02, h - 0.1, 0));
+
+  // Дверь: наличник, ручка, ступенька и козырёк
+  house.add(box(0.74, 1.04, 0.05, COLORS.houseTrim, -0.5, 0, front));
+  house.add(box(0.6, 0.95, 0.06, COLORS.houseDoor, -0.5, 0, front + 0.01));
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), mat(COLORS.houseAccent));
+  knob.position.set(-0.32, 0.48, front + 0.06);
+  house.add(knob);
+  house.add(box(0.9, 0.08, 0.32, COLORS.houseStep, -0.5, 0, front + 0.16));
+  const awning = box(0.95, 0.06, 0.38, COLORS.houseRoof, -0.5, 1.08, front + 0.17);
+  awning.rotation.x = 0.3;
+  house.add(awning);
+
+  // Фонарик у двери — светится
+  house.add(box(0.04, 0.2, 0.12, COLORS.houseTrim, -0.98, 0.95, front + 0.06));
+  const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.12), new THREE.MeshBasicMaterial({ color: COLORS.lamp }));
+  lamp.position.set(-0.98, 0.95, front + 0.16);
+  house.add(lamp);
+
+  // Окно спереди: рама, переплёт крестом, ставни, ящик с цветами
+  const windowWithFrame = (px, py, pz, alongX) => {
+    const [fw, fd] = alongX ? [0.62, 0.05] : [0.05, 0.62];
+    house.add(box(fw, 0.57, fd, COLORS.houseTrim, px, py - 0.06, pz));
+    const [gw, gd] = alongX ? [0.5, 0.06] : [0.06, 0.5];
+    house.add(box(gw, 0.45, gd, COLORS.houseWindow, px + (alongX ? 0 : 0.01), py, pz + (alongX ? 0.01 : 0)));
+    const [bw, bd] = alongX ? [0.04, 0.07] : [0.07, 0.04];
+    house.add(box(bw, 0.45, bd, COLORS.houseTrim, px + (alongX ? 0 : 0.02), py, pz + (alongX ? 0.02 : 0)));
+    const [hw, hd] = alongX ? [0.5, 0.07] : [0.07, 0.5];
+    house.add(box(hw, 0.04, hd, COLORS.houseTrim, px + (alongX ? 0 : 0.02), py + 0.2, pz + (alongX ? 0.02 : 0)));
+  };
+  windowWithFrame(0.7, 0.55, front, true);
+  house.add(box(0.18, 0.5, 0.05, COLORS.houseShutters, 0.3, 0.52, front + 0.02));
+  house.add(box(0.18, 0.5, 0.05, COLORS.houseShutters, 1.1, 0.52, front + 0.02));
+  house.add(box(0.62, 0.12, 0.16, COLORS.houseTrim, 0.7, 0.4, front + 0.08));
+  for (const [fx, color] of [[0.5, COLORS.flower], [0.7, COLORS.flowerCenter], [0.9, COLORS.flower]]) {
+    const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat(color));
+    bloom.position.set(fx, 0.57, front + 0.09);
+    house.add(bloom);
+  }
+
+  // Окно сбоку
+  windowWithFrame(w / 2, 0.6, 0.1, false);
+
+  // Круглое окошко на фронтоне
+  const attic = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.06, 12), new THREE.MeshBasicMaterial({ color: COLORS.lamp }));
+  attic.rotation.x = Math.PI / 2;
+  attic.position.set(0, h + 0.42, (d + 0.3) / 2);
+  house.add(attic);
+  const atticRim = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 6, 16), mat(COLORS.houseTrim));
+  atticRim.position.set(0, h + 0.42, (d + 0.3) / 2 + 0.03);
+  house.add(atticRim);
+
+  // Конёк крыши и труба с шапкой
+  house.add(box(0.14, 0.12, d + 0.4, COLORS.houseTrim, 0, h + 1.04, 0));
+  house.add(box(0.3, 0.7, 0.3, COLORS.houseRoof, 0.8, h + 0.35, -0.3));
+  house.add(box(0.4, 0.08, 0.4, COLORS.houseTrim, 0.8, h + 1.03, -0.3));
+
+  // Сбоку: бочка и поленница
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.2, 0.5, 12), mat(COLORS.barrel));
+  barrel.position.set(w / 2 + 0.35, 0.25, 0.65);
+  barrel.castShadow = true;
+  house.add(barrel);
+  for (const hy of [0.1, 0.4]) {
+    const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.02, 4, 16), mat(COLORS.houseTrim));
+    hoop.rotation.x = Math.PI / 2;
+    hoop.position.set(w / 2 + 0.35, hy, 0.65);
+    house.add(hoop);
+  }
+  for (const [ly, lz] of [[0.09, -0.3], [0.09, -0.12], [0.09, 0.06], [0.25, -0.21], [0.25, -0.03], [0.41, -0.12]]) {
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.55, 8), mat(COLORS.logs));
+    log.rotation.z = Math.PI / 2;
+    log.position.set(w / 2 + 0.35, ly, lz - 0.2);
+    log.castShadow = true;
+    house.add(log);
+  }
 
   house.position.set(x, 0, z);
   return house;
