@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>Огород</title>
     <style>
+      /* Шрифт заголовков (SIL Open Font License, файл лицензии рядом) */
+      @font-face {
+        font-family: 'Brahms Gotisch Cyr';
+        src: url('fonts/BrahmsGotischCyr.otf') format('opentype');
+        font-display: swap;
+      }
+      .title { font-family: 'Brahms Gotisch Cyr', Georgia, serif; font-weight: normal; letter-spacing: 0.02em; }
+
       html, body { margin: 0; height: 100%; background: #1a0a00; overflow: hidden; }
       body { font-family: Menlo, Consolas, monospace; color: #ffd9a0; }
       canvas { touch-action: none; } /* палец двигает сцену, а не страницу */
@@ -15,44 +23,76 @@
         display: flex; gap: 10px;
       }
       .toolbar button {
-        position: relative; width: 84px; height: 84px; padding: 8px 0 6px;
+        position: relative; width: 78px; height: 80px; padding: 8px 0 6px;
         display: flex; flex-direction: column; align-items: center; justify-content: space-between;
         font: inherit; font-size: 13px; color: #d9661a;
         background: #4a1c00; border: 3px solid #8c3a00; cursor: pointer;
         touch-action: manipulation; -webkit-tap-highlight-color: transparent;
       }
       .toolbar button.selected { color: #ffd9a0; background: #8c3a00; border-color: #ffd9a0; }
-      .toolbar svg {
-        width: 38px; height: 38px; fill: none; stroke: currentColor;
-        stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
-      }
+      .toolbar .pixel-icon { width: 36px; height: 36px; fill: currentColor; } /* 3 точки на пиксель значка */
+      .toolbar .name { font-size: 17px; line-height: 1; }
       .toolbar .key { position: absolute; top: 3px; left: 6px; font-size: 11px; opacity: 0.7; }
 
-      /* Счётчик и подсказки */
+      /* Ряд семян над панелью */
+      .seed-row {
+        position: fixed; left: 50%; bottom: 106px; transform: translateX(-50%);
+        display: none; gap: 8px; max-width: calc(100vw - 16px); overflow-x: auto;
+      }
+      .seed-row.visible { display: flex; }
+      .seed-row button {
+        flex: none; height: 44px; padding: 0 12px; font: inherit; font-size: 13px;
+        color: #d9661a; background: #4a1c00; border: 2px solid #8c3a00; cursor: pointer;
+        touch-action: manipulation;
+      }
+      .seed-row button.selected { color: #ffd9a0; background: #8c3a00; border-color: #ffd9a0; }
+
+      /* Магазин */
+      .shop-backdrop {
+        position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+        padding: 16px; background: rgba(26, 10, 0, 0.75);
+      }
+      .shop-backdrop.visible { display: flex; }
+      .shop {
+        width: 100%; max-width: 440px; max-height: 100%; overflow-y: auto;
+        background: #4a1c00; border: 3px solid #ff9933;
+      }
+      .shop-head {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 12px 16px; font-size: 30px; border-bottom: 2px solid #8c3a00;
+      }
+      .shop-close {
+        width: 44px; height: 44px; font: inherit; font-size: 18px;
+        color: #ffd9a0; background: none; border: 2px solid #8c3a00; cursor: pointer;
+      }
+      .shop-row { padding: 12px 16px; border-bottom: 2px solid #8c3a00; }
+      .shop-row:last-child { border-bottom: none; }
+      .shop-row.locked { color: #8c3a00; }
+      .shop-name { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+      .shop-name .title { font-size: 24px; }
+      .shop-name .owned { font-size: 13px; color: #d9661a; }
+      .shop-info { font-size: 13px; color: #d9661a; }
+      .shop-row.locked .shop-info { color: #8c3a00; }
+      .shop-buy { display: flex; gap: 8px; margin-top: 8px; }
+      .shop-buy button {
+        flex: 1; height: 44px; font: inherit; color: #1a0a00; background: #ff9933;
+        border: none; cursor: pointer; touch-action: manipulation;
+      }
+      .shop-buy button:disabled { color: #8c3a00; background: #1a0a00; cursor: default; }
+
+      /* Монеты и подсказки */
       .hud {
-        position: fixed; top: 12px; right: 12px; padding: 8px 12px;
+        position: fixed; top: 12px; right: 12px; padding: 4px 12px 6px; font-size: 24px;
         background: #4a1c00; border: 2px solid #8c3a00;
       }
       .hint {
-        position: fixed; left: 50%; bottom: 112px; transform: translateX(-50%);
-        padding: 8px 14px; white-space: nowrap;
+        position: fixed; left: 50%; bottom: 168px; transform: translateX(-50%);
+        padding: 8px 14px; max-width: calc(100vw - 32px); text-align: center;
         background: #4a1c00; border: 2px solid #ff9933;
         opacity: 0; transition: opacity 0.3s; pointer-events: none;
       }
       .hint.visible { opacity: 1; }
 
-      /* Временные элементы для настройки стиля */
-      .mode-label {
-        position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
-        padding: 8px 14px; background: #4a1c00; border: 2px solid #ff9933;
-        opacity: 0; transition: opacity 0.3s; pointer-events: none;
-      }
-      .mode-label.visible { opacity: 1; }
-      .dev-buttons { position: fixed; top: 12px; left: 12px; display: flex; gap: 8px; }
-      .dev-buttons button {
-        width: 40px; height: 40px; font: inherit; font-weight: bold;
-        color: #ffd9a0; background: #4a1c00; border: 2px solid #8c3a00; cursor: pointer;
-      }
     </style>
   </head>
   <body>

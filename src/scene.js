@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { COLORS, GARDEN_SIZE, CELL_SIZE, BASKET_CELL, MIN_CELL_PX } from './config.js';
 import { cellToWorld } from './grid.js';
 
-const TOOLBAR_SPACE = 110; // сколько точек снизу занимает панель инструментов
+const TOOLBAR_SPACE = 160; // сколько точек снизу занимают панель инструментов и ряд семян
 
 const mat = (color) => new THREE.MeshLambertMaterial({ color });
 
@@ -50,7 +50,8 @@ export function createScene(container) {
   island.castShadow = false;
   scene.add(island);
 
-  scene.add(createHouse(0.5, houseZ));
+  const houseX = 0.5;
+  scene.add(createHouse(houseX, houseZ));
   const basketPos = cellToWorld(BASKET_CELL.x, BASKET_CELL.z);
   const basket = createBasket(basketPos.x, basketPos.z);
   scene.add(basket);
@@ -130,7 +131,15 @@ export function createScene(container) {
     },
   };
 
-  return { renderer, scene, camera, cameraControl, world, basket };
+  // Места для мелких деталей: дым из трубы, флюгер на коньке крыши, края острова
+  const landmarks = {
+    chimneyTop: new THREE.Vector3(houseX + 0.8, 2.55, houseZ - 0.3),
+    roofPeak: new THREE.Vector3(houseX, 2.6, houseZ + 1.0),
+    island: { minX: -half - 0.3, maxX: half + 0.3, minZ: islandMinZ, maxZ: half + 0.3 },
+    house: { minX: houseX - 1.8, maxX: houseX + 1.8, minZ: houseZ - 1.3, maxZ: houseZ + 1.4 },
+  };
+
+  return { renderer, scene, camera, cameraControl, world, basket, landmarks };
 }
 
 function createHouse(x, z) {

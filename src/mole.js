@@ -1,7 +1,7 @@
 // Крот-огородник: собран из простых фигур, ходит сам или по маршруту.
 import * as THREE from 'three';
 import { buildHeld } from './plants.js';
-import { COLORS, CELL_SIZE, MOLE_SPEED, MOLE_TURN_SPEED, MOLE_SCALE } from './config.js';
+import { COLORS, CELL_SIZE, MOLE_SPEED, MOLE_TURN_SPEED, MOLE_SCALE, MOLE_REACH } from './config.js';
 
 const RADIUS = 0.3 * MOLE_SCALE; // «толщина» крота для столкновений
 
@@ -109,9 +109,9 @@ export class Mole {
     return this.object.position;
   }
 
-  // Точка на полклетки перед носом — по ней ищем «клетку перед кротом»
+  // Точка перед носом — по ней ищем «клетку перед кротом»
   get frontPoint() {
-    const d = CELL_SIZE * 0.8;
+    const d = CELL_SIZE * MOLE_REACH;
     return this.position.clone().add(new THREE.Vector3(Math.sin(this.heading) * d, 0, Math.cos(this.heading) * d));
   }
 
