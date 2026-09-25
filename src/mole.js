@@ -1,5 +1,6 @@
 // Крот-огородник: собран из простых фигур, ходит сам или по маршруту.
 import * as THREE from 'three';
+import { buildHeld } from './plants.js';
 import { COLORS, CELL_SIZE, MOLE_SPEED, MOLE_TURN_SPEED, MOLE_SCALE } from './config.js';
 
 const RADIUS = 0.3 * MOLE_SCALE; // «толщина» крота для столкновений
@@ -88,6 +89,20 @@ export class Mole {
     this.path = [];          // точки маршрута после клика
     this.faceTo = null;      // куда повернуться в конце маршрута
     this.onArrive = null;
+    this.held = null;        // что в лапах (например, 'carrot')
+    this.heldObject = null;
+  }
+
+  // Взять урожай в лапы (или освободить лапы, если type = null)
+  setHeld(type) {
+    if (this.heldObject) this.body.remove(this.heldObject);
+    this.held = type;
+    this.heldObject = null;
+    if (type) {
+      this.heldObject = buildHeld(type);
+      this.heldObject.position.set(0, 0.42, 0.34);
+      this.body.add(this.heldObject);
+    }
   }
 
   get position() {
@@ -142,8 +157,11 @@ export class Mole {
     const swing = moving ? Math.sin(this.walkTime * 12) : 0;
     this.legs[0].rotation.x = swing * 0.6;
     this.legs[1].rotation.x = -swing * 0.6;
-    this.arms[0].rotation.x = -swing * 0.5;
-    this.arms[1].rotation.x = swing * 0.5;
+    // С урожаем лапы вытянуты вперёд и держат его, без размахивания
+    const armBase = this.held ? -1.25 : 0;
+    const armSwing = this.held ? 0.08 : 0.5;
+    this.arms[0].rotation.x = armBase - swing * armSwing;
+    this.arms[1].rotation.x = armBase + swing * armSwing;
     this.body.position.y = Math.abs(swing) * 0.03;
     this.body.rotation.z = swing * 0.04;
   }

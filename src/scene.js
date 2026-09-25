@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { COLORS, GARDEN_SIZE, CELL_SIZE, BASKET_CELL } from './config.js';
 import { cellToWorld } from './grid.js';
 
+const TOOLBAR_SPACE = 110; // сколько точек снизу занимает панель инструментов
+
 const mat = (color) => new THREE.MeshLambertMaterial({ color });
 
 // Кубик с тенями, поставленный на пол (y — высота низа)
@@ -48,19 +50,10 @@ export function createScene(container) {
   island.castShadow = false;
   scene.add(island);
 
-  // Клетки огорода
-  for (let x = 0; x < GARDEN_SIZE; x++) {
-    for (let z = 0; z < GARDEN_SIZE; z++) {
-      const p = cellToWorld(x, z);
-      const tile = box(CELL_SIZE * 0.92, 0.04, CELL_SIZE * 0.92, COLORS.soil, p.x, 0, p.z);
-      tile.castShadow = false;
-      scene.add(tile);
-    }
-  }
-
   scene.add(createHouse(0.5, houseZ));
   const basketPos = cellToWorld(BASKET_CELL.x, BASKET_CELL.z);
-  scene.add(createBasket(basketPos.x, basketPos.z));
+  const basket = createBasket(basketPos.x, basketPos.z);
+  scene.add(basket);
 
   // Где крот может ходить и во что упирается
   const world = {
@@ -85,19 +78,22 @@ export function createScene(container) {
           view.expandByPoint(new THREE.Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse));
     const center = view.getCenter(new THREE.Vector3());
     const size = view.getSize(new THREE.Vector3()).multiplyScalar(0.5 * 1.08); // + поля
-    const aspect = w / h;
+    // Сцена вписывается в часть экрана над панелью инструментов
+    const freeH = Math.max(h - TOOLBAR_SPACE, h * 0.5);
+    const aspect = w / freeH;
     if (size.x / size.y > aspect) size.y = size.x / aspect;
     else size.x = size.y * aspect;
+    const top = center.y + size.y;
     Object.assign(camera, {
       left: center.x - size.x, right: center.x + size.x,
-      top: center.y + size.y, bottom: center.y - size.y,
+      top, bottom: top - size.y * 2 * (h / freeH),
     });
     camera.updateProjectionMatrix();
   }
   resize();
   window.addEventListener('resize', resize);
 
-  return { renderer, scene, camera, world };
+  return { renderer, scene, camera, world, basket };
 }
 
 function createHouse(x, z) {
@@ -137,6 +133,17 @@ function createBasket(x, z) {
   handle.rotation.y = Math.PI / 4;
   for (const m of [body, handle]) m.castShadow = true;
   basket.add(body, inside, handle);
+
+  // Урожай в корзинке — показывается, когда там что-то есть
+  const fill = new THREE.Group();
+  for (const [fx, fz] of [[-0.1, 0.05], [0.1, -0.05], [0, 0.12]]) {
+    const piece = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), mat(COLORS.basketFill));
+    piece.position.set(fx, 0.42, fz);
+    fill.add(piece);
+  }
+  fill.visible = false;
+  basket.add(fill);
+  basket.userData.fill = fill;
   basket.position.set(x, 0, z);
   return basket;
 }

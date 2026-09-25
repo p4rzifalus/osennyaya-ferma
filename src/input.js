@@ -9,7 +9,8 @@ const MOVE_KEYS = {
   KeyD: 'right', ArrowRight: 'right',
 };
 
-export function createInput(canvas, camera, handlers = {}) {
+// pickables — объекты, по которым тоже можно кликнуть: [{ object, cell }]
+export function createInput(canvas, camera, handlers = {}, pickables = []) {
   const pressed = new Set();
 
   // «Вверх» на клавиатуре = вверх по экрану. Переводим направления экрана в направления на земле.
@@ -32,7 +33,7 @@ export function createInput(canvas, camera, handlers = {}) {
   window.addEventListener('keyup', (e) => pressed.delete(MOVE_KEYS[e.code]));
   window.addEventListener('blur', () => pressed.clear());
 
-  // Какая клетка огорода под указателем (или null)
+  // Какая клетка огорода (или кликабельный объект) под указателем, иначе null
   const raycaster = new THREE.Raycaster();
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   function cellAt(e) {
@@ -42,6 +43,9 @@ export function createInput(canvas, camera, handlers = {}) {
       -((e.clientY - rect.top) / rect.height) * 2 + 1,
     );
     raycaster.setFromCamera(ndc, camera);
+    for (const p of pickables) {
+      if (raycaster.intersectObject(p.object, true).length) return p.cell;
+    }
     const hit = raycaster.ray.intersectPlane(groundPlane, new THREE.Vector3());
     if (!hit) return null;
     const cell = worldToCell(hit);

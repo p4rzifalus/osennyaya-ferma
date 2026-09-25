@@ -8,6 +8,38 @@
       html, body { margin: 0; height: 100%; background: #1a0a00; overflow: hidden; }
       body { font-family: Menlo, Consolas, monospace; color: #ffd9a0; }
 
+      /* Панель инструментов */
+      .toolbar {
+        position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+        display: flex; gap: 10px;
+      }
+      .toolbar button {
+        position: relative; width: 84px; height: 84px; padding: 8px 0 6px;
+        display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+        font: inherit; font-size: 13px; color: #d9661a;
+        background: #4a1c00; border: 3px solid #8c3a00; cursor: pointer;
+        touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+      }
+      .toolbar button.selected { color: #ffd9a0; background: #8c3a00; border-color: #ffd9a0; }
+      .toolbar svg {
+        width: 38px; height: 38px; fill: none; stroke: currentColor;
+        stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+      }
+      .toolbar .key { position: absolute; top: 3px; left: 6px; font-size: 11px; opacity: 0.7; }
+
+      /* Счётчик и подсказки */
+      .hud {
+        position: fixed; top: 12px; right: 12px; padding: 8px 12px;
+        background: #4a1c00; border: 2px solid #8c3a00;
+      }
+      .hint {
+        position: fixed; left: 50%; bottom: 112px; transform: translateX(-50%);
+        padding: 8px 14px; white-space: nowrap;
+        background: #4a1c00; border: 2px solid #ff9933;
+        opacity: 0; transition: opacity 0.3s; pointer-events: none;
+      }
+      .hint.visible { opacity: 1; }
+
       /* Временные элементы для настройки стиля */
       .mode-label {
         position: fixed; top: 16px; left: 50%; transform: translateX(-50%);

@@ -8,12 +8,18 @@ export const COLORS = {
   background: PALETTE[0],
   ground: PALETTE[2],      // земля вокруг огорода
   soil: PALETTE[1],        // клетки огорода
+  soilWet: PALETTE[0],     // политая земля
+  mound: PALETTE[2],       // бугорок над семечком
+  seed: PALETTE[4],
+  leaves: PALETTE[3],
+  carrot: PALETTE[4],
   houseWalls: PALETTE[3],
   houseRoof: PALETTE[1],
   houseDoor: PALETTE[0],
   houseWindow: PALETTE[5],
   basket: PALETTE[4],
   basketInside: PALETTE[1],
+  basketFill: PALETTE[4],
   moleBody: PALETTE[2],
   moleSnout: PALETTE[3],
   moleOveralls: PALETTE[1],
@@ -34,6 +40,12 @@ export const CELL_SIZE = 1;     // размер клетки в «метрах»
 // Вокруг огорода дорожка шириной в одну клетку: -1 и 8.
 export const BASKET_CELL = { x: -1, z: 1 };   // корзинка стоит на дорожке
 export const MOLE_START = { x: 4, z: 8 };     // где крот появляется
+
+// Растения. stageSeconds — сколько секунд длится каждая стадия после полива:
+// семечко → росток → куст → спелое (всего стадий роста три).
+export const PLANTS = {
+  carrot: { name: 'Морковь', stageSeconds: 5 },
+};
 
 // Крот
 export const MOLE_SPEED = 3;        // клеток в секунду
