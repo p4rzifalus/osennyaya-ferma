@@ -4,8 +4,12 @@ import { cellToWorld, worldToCell, isInGarden, findPathToNeighbor } from './grid
 import { createScene, createHoverFrame, createFrontMarker } from './scene.js';
 import { Mole } from './mole.js';
 import { createInput } from './input.js';
+import { createPostFX } from './postfx.js';
+import { createStyleControls } from './gui.js';
 
 const { renderer, scene, camera, world } = createScene(document.body);
+
+const postfx = createPostFX(renderer, createStyleControls());
 
 const mole = new Mole();
 mole.position.copy(cellToWorld(MOLE_START.x, MOLE_START.z));
@@ -48,7 +52,7 @@ renderer.setAnimationLoop((now) => {
   const front = worldToCell(mole.frontPoint);
   placeOn(frontMarker, isInGarden(front) ? front : null);
 
-  renderer.render(scene, camera);
+  postfx.render(scene, camera);
 });
 
 // Только для разработки: доступ к игре из консоли браузера

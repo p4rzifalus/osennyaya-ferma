@@ -15,7 +15,7 @@ function box(w, h, d, color, x = 0, y = 0, z = 0) {
 }
 
 export function createScene(container) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  const renderer = new THREE.WebGLRenderer();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.domElement.style.display = 'block';
